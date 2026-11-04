@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using IronBrew2.Bytecode_Library.Bytecode;
 using IronBrew2.Bytecode_Library.IR;
 using IronBrew2.Obfuscator;
@@ -17,26 +18,68 @@ namespace IronBrew2
 		public static Random Random = new Random();
 		private static Encoding _fuckingLua = Encoding.GetEncoding(28591);
 
+		private static string FindLuaExecutable(params string[] names)
+		{
+			string extension = Environment.OSVersion.Platform == PlatformID.Win32NT ? ".exe" : "";
+			string[] directories = (Environment.GetEnvironmentVariable("PATH") ?? "")
+				.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+
+			foreach (string name in names)
+			{
+				string executable = Path.HasExtension(name) ? name : name + extension;
+				string localPath = Path.Combine(AppContext.BaseDirectory, executable);
+				if (File.Exists(localPath))
+					return localPath;
+
+				foreach (string directory in directories)
+				{
+					string path = Path.Combine(directory, executable);
+					if (File.Exists(path))
+						return path;
+				}
+			}
+
+			throw new FileNotFoundException("Required Lua executable not found: " + string.Join(" or ", names));
+		}
+
+		private static string ReadProcessOutput(Process process)
+		{
+			Task<string> standardOutput = process.StandardOutput.ReadToEndAsync();
+			Task<string> standardError = process.StandardError.ReadToEndAsync();
+			process.WaitForExit();
+			Task.WaitAll(standardOutput, standardError);
+
+			return standardOutput.Result + standardError.Result;
+		}
+
 		public static bool Obfuscate(string path, string input, ObfuscationSettings settings, out string error)
 		{
 			try
 			{
 				error = "";
+				Directory.CreateDirectory(path);
 
-				string OS = Environment.OSVersion.Platform == PlatformID.Unix ? "/usr/bin/" : "";
-				
+				string luac = FindLuaExecutable("luac", "luac5.1");
+				string luajit = FindLuaExecutable("luajit");
+				string minifier = Path.Combine(AppContext.BaseDirectory, "Lua", "Minifier", "luasrcdiet.lua");
+
+				if (!File.Exists(minifier))
+					throw new FileNotFoundException("Lua minifier script not found.", minifier);
+
 				string l = Path.Combine(path, "luac.out");
 
 				if (!File.Exists(input))
 					throw new Exception("Invalid input file.");
 
 				Console.WriteLine("Checking file...");
+				if (File.Exists(l))
+					File.Delete(l);
 				
 				Process proc = new Process
 				       {
 					       StartInfo =
 					       {
-						       FileName  = $"{OS}luac",
+						       FileName  = luac,
 						       Arguments = "-o \"" + l + "\" \"" + input + "\"",
 						       UseShellExecute = false,
 						       RedirectStandardError = true,
@@ -46,31 +89,30 @@ namespace IronBrew2
 
 				string err = "";
 				
-				proc.OutputDataReceived += (sender, args) => { err += args.Data; };
-				proc.ErrorDataReceived += (sender, args) => { err += args.Data; };
-
 				proc.Start();
-				proc.BeginOutputReadLine();
-				proc.BeginErrorReadLine();
-				proc.WaitForExit();
+				err = ReadProcessOutput(proc);
 
-				error = err;
-				
-				if (!File.Exists(l))
+				if (proc.ExitCode != 0 || !File.Exists(l))
+				{
+					error = string.IsNullOrWhiteSpace(err) ? "Lua compiler exited with code " + proc.ExitCode + "." : err;
 					return false;
+				}
 				
 				File.Delete(l);
 				string t0 = Path.Combine(path, "t0.lua");
 				
 				Console.WriteLine("Stripping comments...");
+				if (File.Exists(t0))
+					File.Delete(t0);
+				err = "";
 
 				proc = new Process
 				       {
 					       StartInfo =
 					       {
-						       FileName = $"{OS}luajit",
+						       FileName = luajit,
 						       Arguments =
-							       "../Lua/Minifier/luasrcdiet.lua --noopt-whitespace --noopt-emptylines --noopt-numbers --noopt-locals --noopt-strings --opt-comments \"" +
+							       "\"" + minifier + "\" --noopt-whitespace --noopt-emptylines --noopt-numbers --noopt-locals --noopt-strings --opt-comments \"" +
 							       input                                                       +
 							       "\" -o \""                                                  + t0 + "\"",
 						       UseShellExecute        = false,
@@ -79,29 +121,28 @@ namespace IronBrew2
 					       }
 				       };
 
-				proc.OutputDataReceived += (sender, args) => { err += args.Data; };
-				proc.ErrorDataReceived  += (sender, args) => { err += args.Data; };
-
 				proc.Start();
-				proc.BeginOutputReadLine();
-				proc.BeginErrorReadLine();
-				proc.WaitForExit();
+				err = ReadProcessOutput(proc);
 
-				error = err;
-
-				if (!File.Exists(t0))
+				if (proc.ExitCode != 0 || !File.Exists(t0))
+				{
+					error = string.IsNullOrWhiteSpace(err) ? "Lua minifier exited with code " + proc.ExitCode + "." : err;
 					return false;
+				}
 
 				string t1 = Path.Combine(path, "t1.lua");
 				
 				Console.WriteLine("Compiling...");
 
 				File.WriteAllText(t1, new ConstantEncryption(settings, File.ReadAllText(t0, _fuckingLua)).EncryptStrings());
+				if (File.Exists(l))
+					File.Delete(l);
+				err = "";
 				proc = new Process
 				       {
 					       StartInfo =
 					       {
-						       FileName  = $"{OS}luac",
+						       FileName  = luac,
 						       Arguments = "-o \"" + l + "\" \"" + t1 + "\"",
 						       UseShellExecute = false,
 						       RedirectStandardError = true,
@@ -109,18 +150,14 @@ namespace IronBrew2
 					       }
 				       };
 
-				proc.OutputDataReceived += (sender, args) => { err += args.Data; };
-				proc.ErrorDataReceived += (sender, args) => { err += args.Data; };
-
 				proc.Start();
-				proc.BeginOutputReadLine();
-				proc.BeginErrorReadLine();
-				proc.WaitForExit();
+				err = ReadProcessOutput(proc);
 
-				error = err;
-
-				if (!File.Exists(l))
+				if (proc.ExitCode != 0 || !File.Exists(l))
+				{
+					error = string.IsNullOrWhiteSpace(err) ? "Lua compiler exited with code " + proc.ExitCode + "." : err;
 					return false;
+				}
 				
 				Console.WriteLine("Obfuscating...");
 
@@ -152,14 +189,16 @@ namespace IronBrew2
 				string t3 = Path.Combine(path, "t3.lua");
 				
 				Console.WriteLine("Minifying...");
+				if (File.Exists(t3))
+					File.Delete(t3);
 				
 				proc = new Process
 				       {
 					       StartInfo =
 					       {
-						       FileName = $"{OS}luajit",
+						       FileName = luajit,
 						       Arguments =
-							       "../Lua/Minifier/luasrcdiet.lua --maximum --opt-entropy --opt-emptylines --opt-eols --opt-numbers --opt-whitespace --opt-locals --noopt-strings \"" +
+							       "\"" + minifier + "\" --maximum --opt-entropy --opt-emptylines --opt-eols --opt-numbers --opt-whitespace --opt-locals --noopt-strings \"" +
 							       t2                                                                                                                                                +
 							       "\" -o \"" + 
 							        t3 + 
@@ -171,8 +210,11 @@ namespace IronBrew2
 				proc.Start();
 				proc.WaitForExit();
 
-				if (!File.Exists(t3))
+				if (proc.ExitCode != 0 || !File.Exists(t3))
+				{
+					error = "Lua minifier exited with code " + proc.ExitCode + ".";
 					return false;
+				}
 				
 				Console.WriteLine("Watermark...");
 				

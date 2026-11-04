@@ -11,4 +11,8 @@
       <ProjectReference Include="..\IronBrew2\IronBrew2.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Content Include="..\Lua\**\*" Link="Lua\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
 </Project>

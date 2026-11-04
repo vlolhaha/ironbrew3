@@ -14,7 +14,10 @@
 -- * TODO: the plugin module is highly experimental and unstable.
 ----
 
-package.path = package.path .. ";../Lua/Minifier/?.lua"
+local script_file = debug.getinfo(1, "S").source:sub(2)
+local directory_separator = package.config:sub(1, 1)
+local script_directory = script_file:match("^(.*" .. directory_separator .. ")") or ""
+package.path = package.path .. ";" .. script_directory .. "?.lua"
 
 local fs = require "fs"
 local llex = require "llex"

@@ -8,20 +8,33 @@ namespace IronBrew2_CLI
 {
 	class Program
 	{
-		static void Main(string[] args)
+		static int Main(string[] args)
 		{
-			if (Directory.Exists("temp"))
-				Directory.Delete("temp", true);
-			Directory.CreateDirectory("temp");
-			if (!IB2.Obfuscate("temp",  args[0], new ObfuscationSettings(), out string err))
+			if (args.Length != 1)
 			{
-				Console.WriteLine("ERR: " + err);
-				return;
+				Console.Error.WriteLine("Usage: IronBrew2 <input.lua>");
+				return 2;
 			}
 
-			File.Delete("out.lua");
-			File.Move("temp/out.lua", "out.lua");
-			Console.WriteLine("Done!");
+			string tempDirectory = Path.Combine(Path.GetTempPath(), "IronBrew2-" + Guid.NewGuid().ToString("N"));
+			Directory.CreateDirectory(tempDirectory);
+			try
+			{
+				if (!IB2.Obfuscate(tempDirectory, Path.GetFullPath(args[0]), new ObfuscationSettings(), out string err))
+				{
+					Console.Error.WriteLine("ERR: " + err);
+					return 1;
+				}
+
+				File.Delete("out.lua");
+				File.Move(Path.Combine(tempDirectory, "out.lua"), "out.lua");
+				Console.WriteLine("Done!");
+				return 0;
+			}
+			finally
+			{
+				Directory.Delete(tempDirectory, true);
+			}
 		}
 	}
 }

@@ -35,7 +35,7 @@ namespace IronBrew2.Bytecode_Library.Bytecode
 			void Write(byte[] b, bool checkEndian = true)
 			{
 				if (!BitConverter.IsLittleEndian && checkEndian)
-					b = b.Reverse().ToArray();
+					b = Enumerable.Reverse(b).ToArray();
 
 				bytes.AddRange(b.Select(i =>
 				                        {

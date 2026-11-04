@@ -67,11 +67,22 @@ namespace IronBrew2.Bytecode_Library.Bytecode
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public byte[] Read(int size, bool factorEndianness = true)
 		{
+			if (size < 0)
+				throw new InvalidDataException("Invalid negative bytecode read size.");
+
 			byte[] bytes = new byte[size];
-			_stream.Read(bytes, 0, size);
+			int offset = 0;
+			while (offset < size)
+			{
+				int read = _stream.Read(bytes, offset, size - offset);
+				if (read == 0)
+					throw new EndOfStreamException("Unexpected end of Lua bytecode.");
+
+				offset += read;
+			}
 
 			if (factorEndianness && (_bigEndian == BitConverter.IsLittleEndian)) //if factor in endianness AND endianness differs between the two versions
-				bytes = bytes.Reverse().ToArray();	
+				bytes = Enumerable.Reverse(bytes).ToArray();
 			
 			return bytes;
 		}
@@ -95,6 +106,9 @@ namespace IronBrew2.Bytecode_Library.Bytecode
 		public string ReadString()
 		{
 			long c = ReadSizeT();
+			if (c < 0 || c > int.MaxValue)
+				throw new InvalidDataException("Invalid Lua string length.");
+
 			int count = (int) c;
 			
 			if (count == 0)
@@ -274,15 +288,22 @@ namespace IronBrew2.Bytecode_Library.Bytecode
 			
 			_bigEndian = ReadByte() == 0;
 			
-			ReadByte(); //size of int (assume 4 fuck off)
+			if (ReadByte() != 4)
+				throw new InvalidDataException("Unsupported Lua integer size.");
 			
 			_sizeSizeT = ReadByte();
+			if (_sizeSizeT != 4 && _sizeSizeT != 8)
+				throw new InvalidDataException("Unsupported Lua size_t size.");
 			
-			ReadByte(); //size of instruction (fuck it not supporting anything else than default)
+			if (ReadByte() != 4)
+				throw new InvalidDataException("Unsupported Lua instruction size.");
 			
 			_sizeNumber = ReadByte();
+			if (_sizeNumber != 8)
+				throw new InvalidDataException("Unsupported Lua number size.");
 			
-			ReadByte(); //not supporting integer number bullshit fuck off
+			if (ReadByte() != 0)
+				throw new InvalidDataException("Unsupported Lua integer-number format.");
 
 			Chunk c = DecodeChunk();
 			return c;
