@@ -12,7 +12,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Content Include="..\Lua\**\*" Link="Lua\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+      <Content Include="..\Lua\**\*" Link="Lua\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
     </ItemGroup>
 
 </Project>

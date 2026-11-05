@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using IronBrew2.Bytecode_Library.Bytecode;
@@ -18,7 +19,33 @@ namespace IronBrew2
 		public static Random Random = new Random();
 		private static Encoding _fuckingLua = Encoding.GetEncoding(28591);
 
-		private static string FindLuaExecutable(params string[] names)
+		private static string GetApplicationDirectory()
+		{
+			string entryAssemblyPath = Assembly.GetEntryAssembly()?.Location;
+			if (!string.IsNullOrEmpty(entryAssemblyPath))
+			{
+				string assemblyDirectory = Path.GetDirectoryName(entryAssemblyPath);
+				if (!string.IsNullOrEmpty(assemblyDirectory) &&
+				    File.Exists(Path.Combine(assemblyDirectory, "Lua", "Minifier", "luasrcdiet.lua")))
+					return assemblyDirectory;
+			}
+
+			using (Process process = Process.GetCurrentProcess())
+			{
+				string processPath = process.MainModule?.FileName;
+				if (!string.IsNullOrEmpty(processPath))
+				{
+					string processDirectory = Path.GetDirectoryName(processPath);
+					if (!string.IsNullOrEmpty(processDirectory) &&
+					    File.Exists(Path.Combine(processDirectory, "Lua", "Minifier", "luasrcdiet.lua")))
+						return processDirectory;
+				}
+			}
+
+			return AppContext.BaseDirectory;
+		}
+
+		private static string FindLuaExecutable(string applicationDirectory, params string[] names)
 		{
 			string extension = Environment.OSVersion.Platform == PlatformID.Win32NT ? ".exe" : "";
 			string[] directories = (Environment.GetEnvironmentVariable("PATH") ?? "")
@@ -27,7 +54,7 @@ namespace IronBrew2
 			foreach (string name in names)
 			{
 				string executable = Path.HasExtension(name) ? name : name + extension;
-				string localPath = Path.Combine(AppContext.BaseDirectory, executable);
+				string localPath = Path.Combine(applicationDirectory, executable);
 				if (File.Exists(localPath))
 					return localPath;
 
@@ -59,9 +86,10 @@ namespace IronBrew2
 				error = "";
 				Directory.CreateDirectory(path);
 
-				string luac = FindLuaExecutable("luac", "luac5.1");
-				string luajit = FindLuaExecutable("luajit");
-				string minifier = Path.Combine(AppContext.BaseDirectory, "Lua", "Minifier", "luasrcdiet.lua");
+				string applicationDirectory = GetApplicationDirectory();
+				string luac = FindLuaExecutable(applicationDirectory, "luac", "luac5.1");
+				string luajit = FindLuaExecutable(applicationDirectory, "luajit");
+				string minifier = Path.Combine(applicationDirectory, "Lua", "Minifier", "luasrcdiet.lua");
 
 				if (!File.Exists(minifier))
 					throw new FileNotFoundException("Lua minifier script not found.", minifier);
