@@ -551,32 +551,39 @@ local ToNumber = tonumber;";
 				if (opcodes.Count == 1)
 					str += $"{virtuals[opcodes[0]].GetObfuscated(_context)}";
 
-				else if (opcodes.Count == 2) 
+				else if (opcodes.Count == 2 && r.Next(2) == 0)
 				{
 					if (r.Next(2) == 0)
-					{
-						str +=
-							$"if Enum > {virtuals[opcodes[0]].VIndex} then {virtuals[opcodes[1]].GetObfuscated(_context)}";
-						str += $"else {virtuals[opcodes[0]].GetObfuscated(_context)}";
-						str += "end;";
-					}
-					else
 					{
 						str +=
 							$"if Enum == {virtuals[opcodes[0]].VIndex} then {virtuals[opcodes[0]].GetObfuscated(_context)}";
 						str += $"else {virtuals[opcodes[1]].GetObfuscated(_context)}";
 						str += "end;";
 					}
+					else
+					{
+						str +=
+							$"if Enum == {virtuals[opcodes[1]].VIndex} then {virtuals[opcodes[1]].GetObfuscated(_context)}";
+						str += $"else {virtuals[opcodes[0]].GetObfuscated(_context)}";
+						str += "end;";
+					}
 				}
 				else
 				{
 					List<int> ordered = opcodes.OrderBy(o => o).ToList();
-					var sorted = new[] { ordered.Take(ordered.Count / 2).ToList(), ordered.Skip(ordered.Count / 2).ToList() };
-					
-					str += "if Enum <= " + sorted[0].Last() + " then ";
-					str += GetStr(sorted[0]);
-					str += " else";
-					str += GetStr(sorted[1]);
+					int split = r.Next(1, ordered.Count);
+					List<int> lower = ordered.Take(split).ToList();
+					List<int> upper = ordered.Skip(split).ToList();
+					int boundary = ordered[split - 1];
+
+					if (r.Next(2) == 0)
+					{
+						str += $"if Enum <= {boundary} then {GetStr(lower)} else {GetStr(upper)} end;";
+					}
+					else
+					{
+						str += $"if Enum > {boundary} then {GetStr(upper)} else {GetStr(lower)} end;";
+					}
 				}
 
 				return str;
