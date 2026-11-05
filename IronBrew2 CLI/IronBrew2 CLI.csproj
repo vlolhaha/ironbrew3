@@ -2,8 +2,9 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
+        <AssemblyName>IronBrew3</AssemblyName>
         <TargetFramework>netcoreapp3.1</TargetFramework>
-        <RootNamespace>IronBrew2_CLI</RootNamespace>
+        <RootNamespace>IronBrew3_CLI</RootNamespace>
         <LangVersion>8</LangVersion>
     </PropertyGroup>
 

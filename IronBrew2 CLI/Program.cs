@@ -4,7 +4,7 @@ using System.Text;
 using IronBrew2;
 using IronBrew2.Obfuscator;
 
-namespace IronBrew2_CLI
+namespace IronBrew3_CLI
 {
 	class Program
 	{
@@ -12,11 +12,11 @@ namespace IronBrew2_CLI
 		{
 			if (args.Length != 1)
 			{
-				Console.Error.WriteLine("Usage: IronBrew2 <input.lua>");
+				Console.Error.WriteLine("Usage: IronBrew3 <input.lua>");
 				return 2;
 			}
 
-			string tempDirectory = Path.Combine(Path.GetTempPath(), "IronBrew2-" + Guid.NewGuid().ToString("N"));
+			string tempDirectory = Path.Combine(Path.GetTempPath(), "IronBrew3-" + Guid.NewGuid().ToString("N"));
 			Directory.CreateDirectory(tempDirectory);
 			try
 			{
